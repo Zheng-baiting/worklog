@@ -5,18 +5,19 @@
 <meta name="theme-color" content="#16634c"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="工作记录">
 <meta name="description" content="记录每天的上班、节假日、请假与加班，按月累计加班小时。">
 <title>工作记录</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg"><link rel="apple-touch-icon" href="icon-192.png"><link rel="stylesheet" href="style.css">
-<script src="core.js" defer></script><script src="app.js" defer></script>
+<script src="core.js" defer></script><script src="storage.js" defer></script><script src="app.js" defer></script>
 </head>
 <body>
 <header><div class="brand"><span class="mark">记</span><div><h1>工作记录</h1><span class="muted">2026.09 — 2030.12</span></div></div><button id="settingsButton" class="quiet">备份与设置</button></header>
 <main>
+<aside id="saveWarning" class="saveWarning" role="alert" hidden><p id="saveWarningText"></p><button id="retrySave">重试保存</button><button id="emergencyBackup" class="quiet">导出当前记录</button></aside>
 <section class="summary" aria-label="加班汇总"><div><p>所选月份 · 加班合计</p><strong id="grandTotal">0</strong><span> 小时</span></div><div class="summaryAside"><span id="monthCount">已选 1 个月</span><span id="saveState" role="status">正在载入</span></div></section>
 <section class="months"><div class="sectionTitle"><h2>查看并填写</h2><button id="currentMonth" class="quiet">回到本月</button></div><details id="monthPicker"><summary><span id="selectionLabel">选择月份</span><span class="muted">点开选择 ▾</span></summary><p class="hint">点一下选中，再点一下取消；可以同时选多个月。</p><div id="monthOptions"></div></details></section>
 <p class="hint" id="storageHint">填写加班小时后直接累计，其他状态不计算工时。</p>
 <div id="records"></div>
 <footer>只累计你填写的加班小时 · 每天的记录都能直接修改</footer>
 </main>
-<dialog id="settings"><div class="dialogHeader"><h2>备份与设置</h2><button data-close="settings" aria-label="关闭">✕</button></div><p id="storageDescription">存储方式待确认。本地预览中的修改暂未持久保存。</p><p id="backupInfo" class="hint"></p><div class="actions"><button id="exportBackup">导出完整备份</button><button id="restoreButton">导入备份</button><button id="exportCsv" class="quiet">导出所选月份表格</button></div><input type="file" id="importFile" accept=".json,application/json" hidden><hr><h3>添加到苹果手机桌面</h3><p>发布后，用 Safari 打开应用链接，点“分享”→“添加到主屏幕”。以后点图标就能进入。</p><p class="hint">微信中收到链接后，请先在 Safari 中打开。不同浏览器里的记录可能不同。</p><h3>初始记录</h3><p>为自己开始使用时，可把 2026 年 9 月 8 日至今天的空白日期填为“上班”。已有填写内容会保留。</p><button id="prefill" class="quiet">填入这段时间的上班记录</button></dialog>
+<dialog id="settings"><div class="dialogHeader"><h2>备份与设置</h2><button data-close="settings" aria-label="关闭">✕</button></div><p id="storageDescription">免登录，填写后自动保存在当前设备、当前浏览器中。每个人各用自己的记录，不会上传考勤数据。</p><p id="backupInfo" class="hint">本机保存不是云端备份。换手机、清除浏览器数据前，请导出完整备份，存到“文件”的 iCloud 云盘；在新手机导入即可恢复。</p><div class="actions"><button id="exportBackup">导出完整备份</button><button id="restoreButton">导入备份</button><button id="exportCsv" class="quiet">导出所选月份表格</button></div><input type="file" id="importFile" accept=".json,application/json" hidden><hr><h3>添加到苹果手机桌面</h3><p>用 Safari 打开发布后的应用链接，点“分享”→“添加到主屏幕”。以后点图标就能进入。</p><p class="hint">微信中收到链接后，请先在 Safari 中打开。建议添加到主屏幕后再开始记录；不同浏览器、网址或入口的记录可能不同，可用备份迁移。</p><h3>初始记录</h3><p>为自己开始使用时，可把 2026 年 9 月 8 日至今天的空白日期填为“上班”。已有填写内容会保留。</p><button id="prefill" class="quiet">填入这段时间的上班记录</button></dialog>
 <dialog id="restoreDialog"><div class="dialogHeader"><h2>恢复备份</h2><button data-close="restoreDialog" aria-label="关闭">✕</button></div><p id="restoreInfo"></p><p>导入会合并记录，同一天以备份内容为准。建议先导出现有记录。</p><div class="actions"><button id="backupBeforeRestore" class="quiet">先导出现有备份</button><button id="confirmRestore">确认合并导入</button></div></dialog>
 <div id="toast" role="status" hidden></div>
 <datalist id="holidays"><option value="中秋节"><option value="国庆节"><option value="春节"><option value="元旦"><option value="清明节"><option value="劳动节"><option value="端午节"></datalist>
