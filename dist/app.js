@@ -4,7 +4,7 @@ const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMon
 const current=()=>today().slice(0,7)<'2026-09'?'2026-09':today().slice(0,7)>'2030-12'?'2030-12':today().slice(0,7);
 let records={},selected=new Set([current()]),pendingImport=null,toastTimer;
 let store, pendingPatches={}, loadFailed=false;
-const emptyRecord=()=>({status:'',holiday:'',hours:'',note:''});
+const emptyRecord=()=>({status:'',holiday:'',start:'',end:'',note:''});
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,6000)}
 function showSaveError(message) {
   $('saveState').textContent='未保存 · 请备份';
@@ -41,7 +41,7 @@ function monthName(m){const [y,n]=m.split('-');return `${y}年${Number(n)}月`}
 function picker(){const fragment=document.createDocumentFragment();for(let y=2026;y<=2030;y++){const group=document.createElement('div');group.className='yearGroup';const title=document.createElement('strong');title.textContent=y+'年';group.append(title);const grid=document.createElement('div');grid.className='monthGrid';for(let m=y===2026?9:1;m<=12;m++){const key=`${y}-${String(m).padStart(2,'0')}`,b=document.createElement('button');b.textContent=m+'月';b.setAttribute('aria-label',monthName(key));b.setAttribute('aria-pressed',selected.has(key));b.onclick=()=>{selected.has(key)?selected.delete(key):selected.add(key);b.setAttribute('aria-pressed',selected.has(key));render()};grid.append(b)}group.append(grid);fragment.append(group)}$('monthOptions').replaceChildren(fragment)}
 function field(date,key,label,type,value) {
   const l=document.createElement('label');
-  l.className=key==='hours'?'overtime':key;
+  l.className=key;
   const caption=document.createElement('span');caption.textContent=label;l.append(caption);
   const input=document.createElement(type==='select'?'select':'input');
   input.setAttribute('aria-label',date+' '+label);input.dataset.field=key;
@@ -52,8 +52,8 @@ function field(date,key,label,type,value) {
     input.dataset.status=value;
   } else {
     input.type=type;
-    if(key==='hours') {
-      input.min='0';input.max='24';input.step='0.01';input.inputMode='decimal';input.placeholder='0';
+    if(type==='time') {
+      input.step='60';
     } else {
       input.maxLength=key==='holiday'?100:1000;input.placeholder=key==='holiday'?'选择或输入':'可选';
       if(key==='holiday')input.setAttribute('list','holidays');
@@ -63,8 +63,8 @@ function field(date,key,label,type,value) {
   function change(event) {
     if(event.isComposing)return;
     try {
-      if(input.validity.badInput)throw new Error('请填写有效的加班小时。');
-      const v=key==='hours'?W.hours(input.value):input.value;
+      if(input.validity.badInput)throw new Error('请填写有效的上下班时间。');
+      const v=type==='time'?W.time(input.value):input.value;
       input.removeAttribute('aria-invalid');
       if((records[date]||emptyRecord())[key]===v)return;
       records[date]={...(records[date]||emptyRecord()),[key]:v};
@@ -81,20 +81,20 @@ function field(date,key,label,type,value) {
   input.addEventListener('compositionend',change);
   l.append(input);return l;
 }
-function updateTotals(){let grand=0;for(const m of selected){const v=W.total(records,m);grand+=Math.round(v*100);const el=document.querySelector(`[data-total="${m}"]`);if(el)el.textContent=v}$('grandTotal').textContent=grand/100;$('monthCount').textContent=`已选 ${selected.size} 个月`}
-function render(){const months=[...selected].sort();$('selectionLabel').textContent=months.length?months.map(monthName).join('、'):'还没有选择月份';const fragment=document.createDocumentFragment();for(const month of months){const section=document.createElement('section');section.className='monthBlock';const heading=document.createElement('div');heading.className='monthHeading';heading.innerHTML=`<h2>${monthName(month)}</h2><span>加班 <b data-total="${month}">0</b> 小时</span>`;section.append(heading);const th=document.createElement('div');th.className='tableHead';th.innerHTML='<span>日期</span><span>状态</span><span>节假日名称</span><span>加班 / 小时</span><span>备注</span>';section.append(th);for(const date of W.dates(month)){const r=records[date]||emptyRecord(),row=document.createElement('div');row.className='record';row.dataset.date=date;const day=document.createElement('div');day.className='day';const weekday=new Date(date+'T12:00:00').getDay();day.innerHTML=`${Number(date.slice(8))}日<span class="weekday">周${'日一二三四五六'[weekday]}${date===today()?' · 今天':''}</span>`;row.append(day,field(date,'status','状态','select',r.status),field(date,'hours','加班小时','number',r.hours),field(date,'holiday','节假日','text',r.holiday),field(date,'note','备注','text',r.note));section.append(row)}fragment.append(section)}if(!months.length){const el=document.createElement('p');el.className='empty';el.textContent='从上方选择月份，就能查看并填写当天记录。';fragment.append(el)}$('records').replaceChildren(fragment);updateTotals()}
+function updateTotals(){let grand=0;for(const m of selected){const v=W.total(records,m);grand+=v;const el=document.querySelector(`[data-total="${m}"]`);if(el)el.textContent=W.format(v)}$('grandTotal').textContent=W.format(grand);$('monthCount').textContent=`已选 ${selected.size} 个月`;for(const row of document.querySelectorAll('[data-date]')){const r=records[row.dataset.date]||emptyRecord(),out=row.querySelector('.duration');if(out)out.textContent=r.start&&r.end?W.format(W.minutes(r))+(r.end<r.start?' · 次日下班':''):'待填时间';}}
+function render(){const months=[...selected].sort();$('selectionLabel').textContent=months.length?months.map(monthName).join('、'):'还没有选择月份';const fragment=document.createDocumentFragment();for(const month of months){const section=document.createElement('section');section.className='monthBlock';const heading=document.createElement('div');heading.className='monthHeading';heading.innerHTML=`<h2>${monthName(month)}</h2><span>工时 <b data-total="${month}">0小时</b></span>`;section.append(heading);const th=document.createElement('div');th.className='tableHead';th.innerHTML='<span>日期</span><span>状态</span><span>节假日名称</span><span>上班时间</span><span>下班时间</span><span>工时</span><span>备注</span>';section.append(th);for(const date of W.dates(month)){const r=records[date]||emptyRecord(),row=document.createElement('div');row.className='record';row.dataset.date=date;const day=document.createElement('div');day.className='day';const weekday=new Date(date+'T12:00:00').getDay();day.innerHTML=`${Number(date.slice(8))}日<span class="weekday">周${'日一二三四五六'[weekday]}${date===today()?' · 今天':''}</span>`;row.append(day,field(date,'status','状态','select',r.status),field(date,'start','上班时间','time',r.start),field(date,'end','下班时间','time',r.end),field(date,'holiday','节假日','text',r.holiday),field(date,'note','备注','text',r.note));const duration=document.createElement('output');duration.className='duration';duration.setAttribute('aria-label',date+' 工时');row.append(duration);section.append(row)}fragment.append(section)}if(!months.length){const el=document.createElement('p');el.className='empty';el.textContent='从上方选择月份，就能查看并填写当天记录。';fragment.append(el)}$('records').replaceChildren(fragment);updateTotals()}
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;(document.querySelector('dialog[open]')||document.body).append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)}
-function exportBackup(){download(new Blob([JSON.stringify({app:'worklog',version:1,exportedAt:new Date().toISOString(),records},null,2)],{type:'application/json'}),`工作记录备份-${today()}.json`);toast('已请求导出，请确认备份文件已保存到“文件”或 iCloud。')}
+function exportBackup(){download(new Blob([JSON.stringify({app:'worklog',version:2,exportedAt:new Date().toISOString(),records},null,2)],{type:'application/json'}),`工作记录备份-${today()}.json`);toast('已请求导出，请确认备份文件已保存到“文件”或 iCloud。')}
 $('settingsButton').onclick=()=>$('settings').showModal();for(const b of document.querySelectorAll('[data-close]'))b.onclick=()=>$(b.dataset.close).close();$('currentMonth').onclick=()=>{selected=new Set([current()]);picker();render()};$('exportBackup').onclick=exportBackup;$('backupBeforeRestore').onclick=exportBackup;
 $('restoreButton').onclick=()=>$('importFile').click();$('importFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>5e6)throw new Error('备份文件过大，请选择本应用导出的 JSON 文件。');pendingImport=W.validate(JSON.parse(await file.text()));$('restoreInfo').textContent=`备份中有 ${Object.keys(pendingImport).length} 天的记录。`;$('restoreDialog').showModal()}catch(error){toast(error instanceof SyntaxError?'文件格式错误，未修改现有记录。':error.message)}e.target.value=''};
 $('confirmRestore').onclick=()=>{if(!pendingImport)return;records={...records,...pendingImport};const saved=persist(pendingImport);render();pendingImport=null;$('restoreDialog').close();toast(saved?'已合并导入并保存在本机。':'备份已读入本页，但保存失败，请先不要关闭页面。')};
-$('exportCsv').onclick=()=>{const cell=v=>'"'+String(v).replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"';const rows=[['日期','状态','节假日名称','加班小时','备注']];for(const m of [...selected].sort()){for(const d of W.dates(m)){const r=records[d]||emptyRecord();rows.push([d,r.status,r.holiday,r.hours,r.note])}rows.push([monthName(m)+'合计','','',W.total(records,m),''])}download(new Blob(['\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),`工作记录-${today()}.csv`)};
+$('exportCsv').onclick=()=>{const cell=v=>'"'+String(v).replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"';const rows=[['日期','状态','节假日名称','上班时间','下班时间','工时分钟','备注']];for(const m of [...selected].sort()){for(const d of W.dates(m)){const r=records[d]||emptyRecord();rows.push([d,r.status,r.holiday,r.start,r.end,W.minutes(r),r.note])}rows.push([monthName(m)+'合计','','','','',W.total(records,m),''])}download(new Blob(['\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),`工作记录-${today()}.csv`)};
 $('prefill').onclick=()=>{
   const patches={};let count=0;
   for(let y=2026;y<=2030;y++)for(let m=y===2026?9:1;m<=12;m++) {
     for(const d of W.dates(`${y}-${String(m).padStart(2,'0')}`)) {
       const r=records[d]||emptyRecord();
-      if(d<=today()&&!r.status&&!r.holiday&&r.hours===''&&!r.note) {
+      if(d<=today()&&!r.status&&!r.holiday&&!r.start&&!r.end&&!r.note) {
         records[d]={...r,status:'上班'};patches[d]={status:'上班'};count++;
       }
     }
