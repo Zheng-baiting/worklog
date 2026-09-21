@@ -2,9 +2,10 @@
 const W=Worklog,$=id=>document.getElementById(id);
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const current=()=>today().slice(0,7)<'2026-09'?'2026-09':today().slice(0,7)>'2030-12'?'2030-12':today().slice(0,7);
-let records={},selected=new Set([current()]),pendingImport=null,toastTimer;
+let records={},selected=new Set(['2026-09','2026-10']),pendingImport=null,toastTimer;
 let store, pendingPatches={}, loadFailed=false;
-const emptyRecord=()=>({status:'',holiday:'',start:'',end:'',note:''});
+const emptyRecord=()=>({status:'',note:''});
+let periodFrom='2026-09-17',periodTo='2026-10-10';
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,6000)}
 function showSaveError(message) {
   $('saveState').textContent='未保存 · 请备份';
@@ -31,6 +32,7 @@ function loadRecords() {
   try {
     store=WorklogStorage.createStorage(localStorage,W.validate);
     records=store.read();
+    records=store.initialize();
     $('saveState').textContent=Object.keys(records).length?'已读取本机记录':'免登录 · 自动保存在本机';
   } catch {
     loadFailed=true;
@@ -81,26 +83,25 @@ function field(date,key,label,type,value) {
   input.addEventListener('compositionend',change);
   l.append(input);return l;
 }
-function updateTotals(){let grand=0;for(const m of selected){const v=W.total(records,m);grand+=v;const el=document.querySelector(`[data-total="${m}"]`);if(el)el.textContent=W.format(v)}$('grandTotal').textContent=W.format(grand);$('monthCount').textContent=`已选 ${selected.size} 个月`;for(const row of document.querySelectorAll('[data-date]')){const r=records[row.dataset.date]||emptyRecord(),out=row.querySelector('.duration');if(out)out.textContent=r.start&&r.end?W.format(W.minutes(r))+(r.end<r.start?' · 次日下班':''):'待填时间';}}
-function render(){const months=[...selected].sort();$('selectionLabel').textContent=months.length?months.map(monthName).join('、'):'还没有选择月份';const fragment=document.createDocumentFragment();for(const month of months){const section=document.createElement('section');section.className='monthBlock';const heading=document.createElement('div');heading.className='monthHeading';heading.innerHTML=`<h2>${monthName(month)}</h2><span>工时 <b data-total="${month}">0小时</b></span>`;section.append(heading);const th=document.createElement('div');th.className='tableHead';th.innerHTML='<span>日期</span><span>状态</span><span>节假日名称</span><span>上班时间</span><span>下班时间</span><span>工时</span><span>备注</span>';section.append(th);for(const date of W.dates(month)){const r=records[date]||emptyRecord(),row=document.createElement('div');row.className='record';row.dataset.date=date;const day=document.createElement('div');day.className='day';const weekday=new Date(date+'T12:00:00').getDay();day.innerHTML=`${Number(date.slice(8))}日<span class="weekday">周${'日一二三四五六'[weekday]}${date===today()?' · 今天':''}</span>`;row.append(day,field(date,'status','状态','select',r.status),field(date,'start','上班时间','time',r.start),field(date,'end','下班时间','time',r.end),field(date,'holiday','节假日','text',r.holiday),field(date,'note','备注','text',r.note));const duration=document.createElement('output');duration.className='duration';duration.setAttribute('aria-label',date+' 工时');row.append(duration);section.append(row)}fragment.append(section)}if(!months.length){const el=document.createElement('p');el.className='empty';el.textContent='从上方选择月份，就能查看并填写当天记录。';fragment.append(el)}$('records').replaceChildren(fragment);updateTotals()}
+function visibleDates(month){return W.dates(month).filter(d=>d>=periodFrom&&d<=periodTo);}
+function updateTotals(){
+const sum=W.periodTotal(records,periodFrom,periodTo);$('grandTotal').textContent=W.format(sum);$('grandPay').textContent='¥ '+W.pay(sum);$('monthCount').textContent=periodFrom+' 至 '+periodTo;
+for(const m of selected){const part=Object.fromEntries(visibleDates(m).filter(d=>records[d]).map(d=>[d,records[d]]));const n=W.total(part,m),el=document.querySelector(`[data-total="${m}"]`);if(el)el.textContent=W.format(n)+' · ¥'+W.pay(n);}
+for(const row of document.querySelectorAll('[data-date]')){const r=records[row.dataset.date]||emptyRecord();row.querySelector('.duration').textContent=r.status?W.format(W.minutes(r)):'未登记';row.querySelector('.wage').textContent=r.status?'¥ '+W.pay(W.minutes(r)):'—';}
+}
+function render(){
+const months=[...selected].sort();$('selectionLabel').textContent=months.length?months.map(monthName).join('、'):'选择月份';const fragment=document.createDocumentFragment();
+for(const month of months){const days=visibleDates(month);if(!days.length)continue;const section=document.createElement('section');section.className='monthBlock';const heading=document.createElement('div');heading.className='monthHeading';heading.innerHTML=`<h2>${monthName(month)}</h2><span data-total="${month}"></span>`;section.append(heading);const th=document.createElement('div');th.className='tableHead';th.innerHTML='<span>日期</span><span>状态</span><span>总工时</span><span>工资</span><span>备注</span>';section.append(th);
+for(const date of days){const r=records[date]||emptyRecord(),row=document.createElement('div');row.className='record';row.dataset.date=date;const day=document.createElement('div');day.className='day';day.innerHTML=`${Number(date.slice(8))}日<span class="weekday">周${'日一二三四五六'[new Date(date+'T12:00:00').getDay()]}${date===today()?' · 今天':''}</span>`;const duration=document.createElement('output');duration.className='duration';duration.setAttribute('aria-label',date+' 总工时');const wage=document.createElement('output');wage.className='wage';wage.setAttribute('aria-label',date+' 工资');row.append(day,field(date,'status','状态','select',r.status),duration,wage,field(date,'note','备注','text',r.note));section.append(row);}fragment.append(section);}
+if(!fragment.childNodes.length){const el=document.createElement('p');el.className='empty';el.textContent='请在统计周期内选择要填写的月份。';fragment.append(el)}$('records').replaceChildren(fragment);updateTotals();}
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;(document.querySelector('dialog[open]')||document.body).append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)}
-function exportBackup(){download(new Blob([JSON.stringify({app:'worklog',version:2,exportedAt:new Date().toISOString(),records},null,2)],{type:'application/json'}),`工作记录备份-${today()}.json`);toast('已请求导出，请确认备份文件已保存到“文件”或 iCloud。')}
+function exportBackup(){download(new Blob([JSON.stringify({app:'worklog',version:3,exportedAt:new Date().toISOString(),records},null,2)],{type:'application/json'}),`工作记录备份-${today()}.json`);toast('已请求导出，请确认备份文件已保存到“文件”或 iCloud。')}
 $('settingsButton').onclick=()=>$('settings').showModal();for(const b of document.querySelectorAll('[data-close]'))b.onclick=()=>$(b.dataset.close).close();$('currentMonth').onclick=()=>{selected=new Set([current()]);picker();render()};$('exportBackup').onclick=exportBackup;$('backupBeforeRestore').onclick=exportBackup;
 $('restoreButton').onclick=()=>$('importFile').click();$('importFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>5e6)throw new Error('备份文件过大，请选择本应用导出的 JSON 文件。');pendingImport=W.validate(JSON.parse(await file.text()));$('restoreInfo').textContent=`备份中有 ${Object.keys(pendingImport).length} 天的记录。`;$('restoreDialog').showModal()}catch(error){toast(error instanceof SyntaxError?'文件格式错误，未修改现有记录。':error.message)}e.target.value=''};
 $('confirmRestore').onclick=()=>{if(!pendingImport)return;records={...records,...pendingImport};const saved=persist(pendingImport);render();pendingImport=null;$('restoreDialog').close();toast(saved?'已合并导入并保存在本机。':'备份已读入本页，但保存失败，请先不要关闭页面。')};
-$('exportCsv').onclick=()=>{const cell=v=>'"'+String(v).replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"';const rows=[['日期','状态','节假日名称','上班时间','下班时间','工时分钟','备注']];for(const m of [...selected].sort()){for(const d of W.dates(m)){const r=records[d]||emptyRecord();rows.push([d,r.status,r.holiday,r.start,r.end,W.minutes(r),r.note])}rows.push([monthName(m)+'合计','','','','',W.total(records,m),''])}download(new Blob(['\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),`工作记录-${today()}.csv`)};
-$('prefill').onclick=()=>{
-  const patches={};let count=0;
-  for(let y=2026;y<=2030;y++)for(let m=y===2026?9:1;m<=12;m++) {
-    for(const d of W.dates(`${y}-${String(m).padStart(2,'0')}`)) {
-      const r=records[d]||emptyRecord();
-      if(d<=today()&&!r.status&&!r.holiday&&!r.start&&!r.end&&!r.note) {
-        records[d]={...r,status:'上班'};patches[d]={status:'上班'};count++;
-      }
-    }
-  }
-  const saved=persist(patches);render();toast(saved?`已为 ${count} 天填入上班并保存。`:'已填入本页，但尚未保存，请导出备份。');
-};
+$('exportCsv').onclick=()=>{const cell=v=>'"'+String(v).replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"';const rows=[['日期','状态','工时','工时分钟','时薪（元）','工资（元）','备注']];for(let y=2026;y<=2030;y++)for(let m=1;m<=12;m++)for(const d of visibleDates(`${y}-${String(m).padStart(2,'0')}`)){const r=records[d]||emptyRecord(),n=W.minutes(r);rows.push([d,r.status,r.status?W.format(n):'',r.status?n:'',18,r.status?W.pay(n):'',r.note])}const sum=W.periodTotal(records,periodFrom,periodTo);rows.push(['周期合计','',W.format(sum),sum,18,W.pay(sum),'']);download(new Blob(['\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),`工资记录-${periodFrom}-${periodTo}.csv`)};
+function changePeriod(){const from=$('periodFrom').value,to=$('periodTo').value;if(!from||!to||from>to||from<W.START||to>W.END){toast('请填写有效的起止日期。');$('periodFrom').value=periodFrom;$('periodTo').value=periodTo;return;}periodFrom=from;periodTo=to;selected=new Set();for(let y=2026;y<=2030;y++)for(let m=1;m<=12;m++){const key=`${y}-${String(m).padStart(2,'0')}`;if(visibleDates(key).length)selected.add(key)}picker();render();}
+$('periodFrom').onchange=changePeriod;$('periodTo').onchange=changePeriod;
 $('retrySave').onclick=()=>{if(loadFailed){loadFailed=false;loadRecords()}if(!loadFailed&&persist()) {render();toast('保存成功。')}};
 $('emergencyBackup').onclick=exportBackup;
 window.addEventListener('beforeunload',event=>{if(Object.keys(pendingPatches).length){event.preventDefault();event.returnValue='';}});
