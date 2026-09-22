@@ -4,11 +4,20 @@
   function createStorage(storage, validate) {
     const initial=root.WORKLOG_INITIAL||{};
     function initialize(){
-      if(storage.getItem(KEY)!==null)return read();
+      const raw=storage.getItem(KEY);
       const latest=read();
-      for(const [date,status] of Object.entries(initial))latest[date]={...latest[date],status,note:latest[date]?.note||''};
+      const appliedUpdates=raw===null?[]:(JSON.parse(raw).appliedUpdates||[]);
+      if(!Array.isArray(appliedUpdates)||!appliedUpdates.every(id=>typeof id==='string'))throw new Error('无效的更新记录。');
+      let changed=raw===null;
+      if(raw===null)for(const [date,status] of Object.entries(initial))latest[date]={...latest[date],status,note:latest[date]?.note||''};
+      for(const update of root.WORKLOG_UPDATES||[]){
+        if(appliedUpdates.includes(update.id))continue;
+        for(const [date,status] of Object.entries(update.records))latest[date]={...latest[date],status,note:latest[date]?.note||''};
+        appliedUpdates.push(update.id);changed=true;
+      }
+      if(!changed)return latest;
       const valid=validate({app:'worklog',version:3,records:latest});
-      storage.setItem(KEY,JSON.stringify({app:'worklog',version:3,records:valid}));
+      storage.setItem(KEY,JSON.stringify({app:'worklog',version:3,records:valid,appliedUpdates}));
       return valid;
     }
     function read() {
@@ -22,7 +31,8 @@
         latest[date] = {status:'', note:'', ...latest[date], ...patch};
       }
       const valid = validate({app:'worklog', version:3, records:latest});
-      storage.setItem(KEY, JSON.stringify({app:'worklog', version:3, records:valid}));
+      const appliedUpdates=JSON.parse(storage.getItem(KEY)||'{}').appliedUpdates||[];
+      storage.setItem(KEY, JSON.stringify({app:'worklog', version:3, records:valid,appliedUpdates}));
       return valid;
     }
     return {read, save, initialize};
