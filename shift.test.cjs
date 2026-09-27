@@ -3,6 +3,10 @@ const W=require('./dist/core.js'),{createStorage,KEY}=require('./dist/storage.js
 test('shift minutes deduct breaks and pay every minute equally',()=>{
   const day=(12*60+10-(7*60+50)-10)+(17*60+10-13*60-10);
   assert.equal(day,490);assert.equal(W.minutes({status:'上班'}),day);
+  assert.equal(W.minutes({status:'连班'}),day+(19*60+10-(17*60+10)));
+  assert.equal(W.pay(W.minutes({status:'连班'})),'183.00');
+  assert.equal(W.format(W.minutes({status:'连班'})),'10小时10分');
+  assert.equal(W.validate({app:'worklog',version:3,records:{'2026-10-03':{status:'连班',note:''}}})['2026-10-03'].status,'连班');
   assert.equal(W.minutes({status:'加班'}),day+(21*60+10-(17*60+40)));
   assert.equal(W.minutes({status:'中加班'}),day+(21*60+40-(17*60+40)));
   assert.equal(W.pay(W.minutes({status:'中加班'})),'219.00');

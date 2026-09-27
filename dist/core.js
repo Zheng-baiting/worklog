@@ -1,9 +1,9 @@
 (function(root){
 'use strict';
-const START='2026-09-17',END='2030-12-31',statuses=['','上班','没上班','加班','中加班','长加班'];
+const START='2026-09-17',END='2030-12-31',statuses=['','上班','没上班','连班','加班','中加班','长加班'];
 function dates(month){if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))return [];const [y,m]=month.split('-').map(Number);return Array.from({length:new Date(y,m,0).getDate()},(_,i)=>`${month}-${String(i+1).padStart(2,'0')}`).filter(d=>d>=START&&d<=END);}
 function time(v){if(v!==''&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(v))throw new Error('请填写有效时间，例如 08:20。');return v;}
-const SHIFT_MINUTES={'上班':490,'没上班':0,'加班':700,'中加班':730,'长加班':760};
+const SHIFT_MINUTES={'上班':490,'没上班':0,'连班':610,'加班':700,'中加班':730,'长加班':760};
 function minutes(r){return SHIFT_MINUTES[r.status]??0;}
 function pay(n){return (n*30/100).toFixed(2);}
 function periodTotal(records,from,to){return Object.entries(records).filter(([d])=>d>=from&&d<=to).reduce((n,[,r])=>n+minutes(r),0);}
