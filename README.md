@@ -1,5 +1,7 @@
 # 工作记录 · 本机班次工资版
 
+当前版本：**0.1.0（源码归档）** · [变更记录](CHANGELOG.md) · [版本管理](VERSIONING.md)
+
 源代码归档于 https://github.com/Zheng-baiting/worklog 。软件已停用，本地项目和桌面快捷方式按要求清理。仓库不包含个人考勤数据。
 
 如需恢复，下载代码，将 dist/personal-records.example.js 复制为 dist/personal-records.js（默认空记录），再用浏览器打开 dist/index.html。HTML 文件若默认关联代码编辑器，应在浏览器中打开。记录保存在使用该文件的浏览器本机存储，仓库不是考勤数据备份。
